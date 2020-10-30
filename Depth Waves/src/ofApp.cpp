@@ -4,8 +4,8 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
 
-	depthToVertShader.setupShaderFromFile(GL_COMPUTE_SHADER, "shaders/compute-point-from-depth.glsl");
-	depthToVertShader.linkProgram();
+	computeParticlesShader.setupShaderFromFile(GL_COMPUTE_SHADER, "shaders/compute-particles.glsl");
+	computeParticlesShader.linkProgram();
 
 	ofEnableDepthTest();
 	cam.setDistance(0);
@@ -60,23 +60,48 @@ void ofApp::setup(){
 }
 
 //--------------------------------------------------------------
-void ofApp::update(){
+void ofApp::update() {
 	ofClear(0, 0, 0, 0);
 
-	depthToVertShader.begin();
-	//depthToVertShader.setUniformMatrix4f("modelViewProjectionMatrix", cam.getModelViewProjectionMatrix());
-	//depthToVertShader.setUniform1f("minDepth", 0.f);
-	//depthToVertShader.setUniform1f("maxDepth", 1000.f);
-	//depthToVertShader.setUniformTexture("depthTex", depthImage.getTexture(), 0);
-	//depthToVertShader.setUniformTexture("colorTex", colorImage.getTexture(), 1);
+	/** Update Waves */
 
-	vertBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 0);
-	colorImage.getTexture().bindAsImage(1, GL_READ_ONLY);
-	depthImage.getTexture().bindAsImage(2, GL_READ_ONLY);
+	for (auto &wave : waves)
+	{
+		wave.outerRadius += wave.velocity;
+		wave.innerRadius += wave.velocity;
+		wave.amplitude *= wave.decay;
+	}
 
-	depthToVertShader.dispatchCompute(384, 384, 1);
+	// Remove waves whose magnitudes are close to zero
+	if (waves.size() > 0)
+	{
+		auto deadWaves = std::remove_if(waves.begin(), waves.end(), [](Wave wave) { return fabs(wave.amplitude) <= AMPLITUDE_EPSILON; });
+		waves.erase(deadWaves, waves.end());
+	}
 
-	depthToVertShader.end();
+	// prepare data to pass to shader
+	float xFov = ofDegToRad(cam.getFov());
+	float camFov[2] = { xFov, xFov / cam.getAspectRatio() };
+
+	auto waveBuf = ofBufferObject();
+	waveBuf.allocate(waves.size() * sizeof(waves), waves.data(), GL_UNIFORM_BUFFER);
+
+	// start compute shader
+	computeParticlesShader.begin();
+
+	colorImage.getTexture().bindAsImage(0, GL_READ_ONLY);
+	depthImage.getTexture().bindAsImage(1, GL_READ_ONLY);
+
+	vertBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 2);
+	waveBuf.bindBase(GL_SHADER_STORAGE_BUFFER, 3);
+
+	computeParticlesShader.setUniform1f("minDepth", 0.f);
+	computeParticlesShader.setUniform1f("maxDepth", 1000.f);
+	computeParticlesShader.setUniformMatrix4f("cameraModelViewMatrix", cam.getModelViewMatrix());
+	computeParticlesShader.setUniform2fv("cameraFov", camFov);
+
+	computeParticlesShader.dispatchCompute(384, 384, 1);
+	computeParticlesShader.end();
 }
 
 //--------------------------------------------------------------
@@ -120,12 +145,14 @@ void ofApp::mouseDragged(int x, int y, int button){
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
-
+	// start wave
+	emittingWave = true;
+	waves.emplace_back(glm::vec3(0, 0, 0), 0.f, 0.f, 1.f, 1.f, 0.1f);
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseReleased(int x, int y, int button){
-
+	// end wave
 }
 
 //--------------------------------------------------------------

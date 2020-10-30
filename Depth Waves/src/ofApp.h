@@ -1,5 +1,7 @@
 #pragma once
 
+#define AMPLITUDE_EPSILON 0.001f
+
 #include "ofMain.h"
 
 class ofApp : public ofBaseApp{
@@ -24,26 +26,29 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg);
 
 		struct Vertex {
-			glm::vec3 pos;
+			glm::vec4 pos;
 			ofFloatColor color;
 		};
 
 		struct Wave {
 			glm::vec3 pos;
-			float radius;
-			float wavelength;
-			float amplitude;
-			float decay;
+			float outerRadius, innerRadius, amplitude, velocity, decay;
+			
+			Wave(glm::vec3 pos, float outerRadius, float innerRadius, float amplitude, float velocity, float decay)
+			{
+				this->pos = pos; this->outerRadius = outerRadius; this->innerRadius = innerRadius; this->amplitude = amplitude, this->velocity = velocity; this->decay = decay;
+			};
 		};
 
 		ofVboMesh colorMesh, depthMesh;
 		ofImage colorImage, depthImage;
 		ofEasyCam cam;
-		ofShader renderShader, depthToVertShader;
+		ofShader renderShader, computeParticlesShader;
 		ofVbo vbo;
 		ofBufferObject vertBuffer;
 		int numVerts;
 
 		vector<Wave> waves;
 
+		bool emittingWave;
 };
