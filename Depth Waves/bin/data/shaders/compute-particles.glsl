@@ -27,7 +27,8 @@ layout(std430, binding = 3) buffer wave {
 
 uniform float minDepth;
 uniform float maxDepth;
-uniform mat4x4 cameraModelViewMatrix;
+uniform vec3 cameraPos;
+uniform vec3 cameraRot;
 uniform vec2 cameraFov;
 
 layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
@@ -62,13 +63,38 @@ float getSmoothedDepth()
 	return depth / c;
 }
 
+mat4 rotationX( in float angle ) {
+	return mat4(1.0,		0,			0,			0,
+			 	0, 	cos(angle),	-sin(angle),		0,
+				0, 	sin(angle),	 cos(angle),		0,
+				0, 			0,			  0, 		1);
+}
+
+mat4 rotationY( in float angle ) {
+	return mat4(cos(angle),		0,		sin(angle),	0,
+			 			0,		1.0,			 0,	0,
+				-sin(angle),	0,		cos(angle),	0,
+						0, 		0,				0,	1);
+}
+
+mat4 rotationZ( in float angle ) {
+	return mat4(cos(angle),		-sin(angle),	0,	0,
+			 	sin(angle),		cos(angle),		0,	0,
+						0,				0,		1,	0,
+						0,				0,		0,	1);
+}
+
+mat4 rotation( in vec3 angles ) {
+	return rotationZ(angles.z) * rotationY(angles.y) * rotationX(angles.x);
+}
+
 vec4 getWorldPosition()
 {
 	vec2 uv = vec2(gl_GlobalInvocationID.xy) / vec2(imageSize(depthTex));
 
-	float d = 1.0;//getSmoothedDepth();
+	float d = getSmoothedDepth();
 
-	float zCam = minDepth + d * (maxDepth - minDepth);
+	float zCam = (minDepth + d * (maxDepth - minDepth));
 
 	vec2 focalLen = 0.5f / tan(0.5f * cameraFov);
 
@@ -76,9 +102,9 @@ vec4 getWorldPosition()
 
 	vec3 pos = zCam * vec3(pixelTans, 1.f);
 
-	mat4 m = cameraModelViewMatrix;
+	mat4 m = rotation(-cameraRot);
 
-	return vec4(pos, 1.0);
+	return vec4(2 * cameraPos + (m * vec4(pos.xyz, 1.0)).xyz, 1.0);
 }
 
 void main()

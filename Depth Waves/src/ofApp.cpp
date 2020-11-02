@@ -3,12 +3,12 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+	ofSetVerticalSync(true);
 
 	computeParticlesShader.setupShaderFromFile(GL_COMPUTE_SHADER, "shaders/compute-particles.glsl");
 	computeParticlesShader.linkProgram();
 
 	ofEnableDepthTest();
-	cam.setDistance(0);
 	depthImage.load("depth.png");
 	depthImage.setImageType(OF_IMAGE_COLOR_ALPHA);
 	colorImage.load("color-small.png");
@@ -22,7 +22,7 @@ void ofApp::setup(){
 	vector<Vertex> verts;
 	verts.resize(numVerts);
 	for (auto &v : verts) {
-		v.color = ofFloatColor(1, 0, 1, 1);
+		v.color = ofFloatColor(0, 0, 0, 0);
 	}
 
 	vertBuffer.allocate(sizeof(Vertex) * numVerts, GL_DYNAMIC_DRAW);
@@ -39,23 +39,7 @@ void ofApp::setup(){
 
 	vertBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 0);
 
-	// Compute Shader Info
-
-	int work_grp_cnt[3];
-
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &work_grp_cnt[0]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &work_grp_cnt[1]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &work_grp_cnt[2]);
-
-	cout << "max global (total) work group counts x: " << work_grp_cnt[0] << ", y: " << work_grp_cnt[1] << ", z: " << work_grp_cnt[2] << endl;
-
-	int work_grp_size[3];
-
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &work_grp_size[0]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &work_grp_size[1]);
-	glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &work_grp_size[2]);
-
-	cout << "max local (in one shader) work group sizes x: " << work_grp_size[0] << ", y: " << work_grp_size[1] << ", z: " << work_grp_size[2] << endl;
+	// Set up GUI
 
 }
 
@@ -64,6 +48,11 @@ void ofApp::update() {
 	ofClear(0, 0, 0, 0);
 
 	/** Update Waves */
+
+	if (isEmittingWave)
+	{
+
+	}
 
 	for (auto &wave : waves)
 	{
@@ -81,7 +70,10 @@ void ofApp::update() {
 
 	// prepare data to pass to shader
 	float xFov = ofDegToRad(cam.getFov());
-	float camFov[2] = { xFov, xFov / cam.getAspectRatio() };
+	ofVec2f camFov(xFov, xFov);
+	glm::vec3 camPos = cam.getPosition();
+	glm::vec3 camRot = cam.getOrientationEulerRad();
+	glm::vec3 camDir = cam.getLookAtDir();
 
 	auto waveBuf = ofBufferObject();
 	waveBuf.allocate(waves.size() * sizeof(waves), waves.data(), GL_UNIFORM_BUFFER);
@@ -95,13 +87,17 @@ void ofApp::update() {
 	vertBuffer.bindBase(GL_SHADER_STORAGE_BUFFER, 2);
 	waveBuf.bindBase(GL_SHADER_STORAGE_BUFFER, 3);
 
-	computeParticlesShader.setUniform1f("minDepth", 0.f);
-	computeParticlesShader.setUniform1f("maxDepth", 1000.f);
-	computeParticlesShader.setUniformMatrix4f("cameraModelViewMatrix", cam.getModelViewMatrix());
-	computeParticlesShader.setUniform2fv("cameraFov", camFov);
+	computeParticlesShader.setUniform1f("minDepth", -1000.f);
+	computeParticlesShader.setUniform1f("maxDepth", -100.f);
+	computeParticlesShader.setUniform3f("cameraRot", camRot.x, camRot.y, camRot.z);
+	computeParticlesShader.setUniform3f("cameraPos", camPos.x, camPos.y, camPos.z);
+	computeParticlesShader.setUniform2f("cameraFov", camFov.x, camFov.y);
+
+	ofLog(OF_LOG_NOTICE, ofToString(cam.getPosition()));
 
 	computeParticlesShader.dispatchCompute(384, 384, 1);
 	computeParticlesShader.end();
+
 }
 
 //--------------------------------------------------------------
@@ -111,7 +107,7 @@ void ofApp::draw(){
 	cam.begin();
 
 	renderShader.begin();
-	renderShader.setUniform1f("size", 1.0);
+	renderShader.setUniform1f("size", .5);
 	renderShader.setUniform2f("imageSize", imageSize * 4);
 	renderShader.setUniformMatrix4f("modelViewProjectionMatrix", cam.getModelViewProjectionMatrix());
 	
@@ -120,7 +116,6 @@ void ofApp::draw(){
 	renderShader.end();
 
 	cam.end();
-	
 }
 
 //--------------------------------------------------------------
@@ -146,13 +141,14 @@ void ofApp::mouseDragged(int x, int y, int button){
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
 	// start wave
-	emittingWave = true;
+	isEmittingWave = true;
 	waves.emplace_back(glm::vec3(0, 0, 0), 0.f, 0.f, 1.f, 1.f, 0.1f);
 }
 
 //--------------------------------------------------------------
 void ofApp::mouseReleased(int x, int y, int button){
 	// end wave
+	isEmittingWave = false;
 }
 
 //--------------------------------------------------------------

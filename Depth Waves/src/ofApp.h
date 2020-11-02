@@ -47,8 +47,6 @@ class ofApp : public ofBaseApp{
 		ofVbo vbo;
 		ofBufferObject vertBuffer;
 		int numVerts;
-
 		vector<Wave> waves;
-
-		bool emittingWave;
+		bool isEmittingWave;
 };
